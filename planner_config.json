@@ -11,11 +11,15 @@
     "require_keys": {
         "DUMMY_TAG": ["goal", "task_type"],
         "STORY_TAG": ["goal", "task_type"],
-        "CHAPTER_TAG": ["goal", "task_type"]
+        "CHAPTER_TAG": ["goal", "task_type"],
+        "REPORT_TAG": ["goal", "task_type"],
+        "REPORT_SECTION_TAG": ["goal", "task_type"]
     },
     "tag2task_type": {
         "dummy_task": "DUMMY_TAG",
         "story_task": "STORY_TAG",
-        "chapter_task": "CHAPTER_TAG"
+        "chapter_task": "CHAPTER_TAG",
+        "report_task": "REPORT_TAG",
+        "report_section_task": "REPORT_SECTION_TAG"
     }
 }

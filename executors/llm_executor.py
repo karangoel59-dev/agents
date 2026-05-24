@@ -6,8 +6,11 @@ EXECUTOR_CONFIGS = {
     "chapter_task": {
         "system_prompt": "You are an expert story writer.",
         "user_prompt": "Context:\n{context}\n\nPlease write a comprehensive and compelling long-form narrative section based ONLY on this chapter prompt: {goal}\n\nFormat your output cleanly. Ensure it is a few paragraphs long."
+    },
+    "report_section_task": {
+        "system_prompt": "You are an analytical reporter.",
+        "user_prompt": "Context from previous sections:\n{context}\n\nPlease write a comprehensive section for our report based ONLY on this goal/prompt: {goal}\n\nMaintain the original wording and nuance from any source material mentioned. Format cleanly using markdown."
     }
-    # Add new executor task types here (e.g., 'sub_research_task', 'module_coding_task')
 }
 
 @executor_register.register_module()

@@ -102,15 +102,25 @@ def test_planner_example(task_goal="Write an epic fantasy story about a young fa
     
     try:
         save_folder = f"{root_task_type}_output"
+        os.makedirs(save_folder, exist_ok=True)
         final_answer = engine.forward_one_step_untill_done(save_folder=save_folder)
         print(f"\nPlanner Execution Complete.\nThe results have been saved to the '{save_folder}' directory.")
     except Exception as e:
         print(f"\nPlanner failed with an error: {e}")
 
+def create_report_from_md(md_file_path):
+    print(f"Reading markdown file from: {md_file_path}")
+    try:
+        with open(md_file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except FileNotFoundError:
+        print(f"File not found: {md_file_path}")
+        return
+        
+    print("Starting report generation using 'report_task'...")
+    test_planner_example(task_goal=content, root_task_type="report_task")
+
 if __name__ == "__main__":
     # test_azure_openai()
-    # You can change the task here, e.g., to a "research_task" once added to the configs.
-    test_planner_example(
-        task_goal="Write an epic fantasy story about a young farm boy who discovers a dragon egg.",
-        root_task_type="story_task"
-    )
+    md_path = "May 24, 2026 09-36-35 PM Markdown Content.md"
+    create_report_from_md(md_path)
