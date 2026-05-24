@@ -1,0 +1,21 @@
+{
+    "action_mapping": {
+        "plan": "LLMPlanner",
+        "prior_reflect": "dummy_agent",
+        "execute": "LLMExecutor",
+        "update": "dummy_agent",
+        "execute_post_reflect": "dummy_agent",
+        "planning_post_reflect": "dummy_agent",
+        "final_aggregate": "dummy_agent"
+    },
+    "require_keys": {
+        "DUMMY_TAG": ["goal", "task_type"],
+        "STORY_TAG": ["goal", "task_type"],
+        "CHAPTER_TAG": ["goal", "task_type"]
+    },
+    "tag2task_type": {
+        "dummy_task": "DUMMY_TAG",
+        "story_task": "STORY_TAG",
+        "chapter_task": "CHAPTER_TAG"
+    }
+}
