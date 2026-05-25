@@ -1,126 +1,166 @@
+from flask import Flask, request, jsonify
 import os
+import datetime
+import json
 import sys
+import threading
 
-# Ensure the writehere-planner directory is in the path to import 'recursive'
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'writehere-planner')))
+# Add the project root to the Python path to allow for absolute imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from recursive.llm.llm import OpenAIApiProxy
-from dotenv import load_dotenv
+from recursive.graph import RegularDummyNode, NodeType, TaskStatus
+from recursive.engine import GraphRunEngine
 
-def test_azure_openai():
-    # Load environment variables (from .env or api_key.env)
-    load_dotenv()
-    
-    print("Testing Azure OpenAI Integration...")
-    
-    # Initialize the proxy
-    proxy = OpenAIApiProxy(verbose=True)
-    
-    # Check if Azure environment variables are set
-    if not os.getenv("AZURE_OPENAI_ENDPOINT"):
-        print("Warning: AZURE_OPENAI_ENDPOINT is not set in the environment.")
-        print("Please set your Azure OpenAI credentials in .env to run an actual test.")
-        return
-        
-    print(f"Azure Endpoint: {os.getenv('AZURE_OPENAI_ENDPOINT')}")
-    
-    try:
-        # Test 1: Completions (gpt-4o or similar)
-        print("\n--- Testing Chat Completions ---")
-        model = "gpt-4o"
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "Say 'Azure OpenAI connection successful!'"}
-        ]
-        
-        completion_response = proxy.call(model=model, messages=messages, temperature=0.7, no_cache=True, use_official="azure")
-        if completion_response:
-            print("Chat Completion Response:")
-            print(completion_response[0]["message"]["content"])
-        else:
-            print("No completion response received.")
-            
-        # Test 2: Embeddings
-        print("\n--- Testing Embeddings ---")
-        embedding_model = "text-embedding-3-large"
-        text = "Test embedding generation with Azure OpenAI"
-        
-        embedding_response = proxy.call_embedding(model=embedding_model, text=text, use_official="azure")
-        if embedding_response and "data" in embedding_response:
-            print(f"Embedding generated successfully. Dimensionality: {len(embedding_response['data'][0]['embedding'])}")
-        else:
-            print("Failed to generate embeddings.")
-            
-    except Exception as e:
-        print(f"\nTest failed with an error: {e}")
+# Import planners and executors to register them with the agent registry
+import planners.llm_planner
+import executors.llm_executor
 
-def test_planner_example(task_goal="Write an epic fantasy story about a young farm boy who discovers a dragon egg.", root_task_type="story_task"):
+app = Flask(__name__)
+
+# --- New additions for async tasks and status polling ---
+running_tasks = {}
+tasks_lock = threading.Lock()
+
+def get_all_nodes(node):
     """
-    An example demonstrating how to initialize and run the generic planner engine.
+    Recursively get all nodes in the graph from a starting node.
     """
-    print(f"\n--- Running Planner Engine Example ({root_task_type}) ---")
-    
-    from recursive.graph import TaskStatus, RegularDummyNode, NodeType
-    from recursive.engine import GraphRunEngine
-    import json
+    nodes = [node]
+    for child in node.inner_graph.topological_task_queue:
+        nodes.extend(get_all_nodes(child))
+    return nodes
 
-    # Import the custom planners and executors so their decorators register them
-    import planners.llm_planner
-    import executors.llm_executor
+def run_task_background(task_id, task_type, goal):
+    """
+    A helper function to run a task in a background thread.
+    """
+    output_dir = os.path.join("output", task_id)
+    os.makedirs(output_dir, exist_ok=True)
 
-    # 1. Load configurations for the engine from external file
+    # Load configurations for the engine from the JSON file
     with open('planner_config.json', 'r') as f:
-        engine_config = json.load(f)
+        config = json.load(f)
 
-    # 2. Define node metadata
-    node_graph_info = {
-        "outer_node": None,
-        "root_node": None,  # Will assign to itself after initialization
-        "parent_nodes": [],
-        "layer": 0
-    }
-    
-    task_info = {
-        "goal": task_goal,
-        "task_type": root_task_type
+    initial_task = {
+        "goal": goal,
+        "task_type": task_type,
     }
 
-    # 3. Create root node
+    # Create the root node of the graph
+    node_graph_info = {"outer_node": None, "parent_nodes": [], "layer": 0}
     root_node = RegularDummyNode(
-        config=engine_config, 
-        nid="0", 
-        node_graph_info=node_graph_info, 
-        task_info=task_info, 
+        config=config,
+        nid="0",
+        node_graph_info=node_graph_info,
+        task_info=initial_task,
         node_type=NodeType.PLAN_NODE
     )
-    # Self-reference for root node
     root_node.node_graph_info["root_node"] = root_node
-    root_node.status = TaskStatus.READY
+    root_node.status = TaskStatus.READY  # Set initial status to READY to start execution
 
-    # 4. Initialize and Run the Engine
-    engine = GraphRunEngine(root_node=root_node, memory_format="xml", config=engine_config)
-    
+    engine = GraphRunEngine(root_node=root_node, memory_format="xml", config=config)
+
     try:
-        save_folder = f"{root_task_type}_output"
-        os.makedirs(save_folder, exist_ok=True)
-        final_answer = engine.forward_one_step_untill_done(save_folder=save_folder)
-        print(f"\nPlanner Execution Complete.\nThe results have been saved to the '{save_folder}' directory.")
+        # The engine will handle the execution loop and saving state.
+        engine.forward_one_step_untill_done(save_folder=output_dir)
+        print(f"\nPlanner Execution Complete for task {task_id}.\nThe results have been saved to the '{output_dir}' directory.")
+
     except Exception as e:
-        print(f"\nPlanner failed with an error: {e}")
+        print(f"Error running task {task_id}: {e}")
+        # Optionally, save error status to a file
+        error_info = {"status": "error", "message": str(e)}
+        with open(os.path.join(output_dir, "status.json"), "w") as f:
+            json.dump(error_info, f)
 
-def create_report_from_md(md_file_path):
-    print(f"Reading markdown file from: {md_file_path}")
-    try:
-        with open(md_file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-    except FileNotFoundError:
-        print(f"File not found: {md_file_path}")
-        return
-        
-    print("Starting report generation using 'report_task'...")
-    test_planner_example(task_goal=content, root_task_type="report_task")
+def find_executing_node(node_data):
+    """
+    Recursively search for the deepest, non-finished node in the graph,
+    which represents the currently executing task.
+    """
+    if not isinstance(node_data, dict) or node_data.get("status") == "FINISH":
+        return None
 
-if __name__ == "__main__":
-    # test_azure_openai()
-    md_path = "May 24, 2026 09-36-35 PM Markdown Content.md"
-    create_report_from_md(md_path)
+    # This node is active. Check its children first.
+    inner_graph = node_data.get("inner_graph", {})
+    if inner_graph and "topological_task_queue" in inner_graph:
+        for child_node in inner_graph["topological_task_queue"]:
+            active_child = find_executing_node(child_node)
+            if active_child:
+                return active_child
+    
+    # If no active child, and this node is not finished, it's the current one.
+    return node_data
+
+@app.route('/status/<task_id>', methods=['GET'])
+def get_task_status(task_id):
+    """
+    API endpoint to poll the status of a task.
+    e.g., curl http://127.0.0.1:5000/status/story_task_2026-05-24_22-00-00
+    """
+    output_dir = os.path.join("output", task_id)
+    nodes_file = os.path.join(output_dir, "nodes.json")
+    article_file = os.path.join(output_dir, "article.txt")
+
+    response = {"task_id": task_id}
+
+    with tasks_lock:
+        thread = running_tasks.get(task_id)
+
+    if not thread and not os.path.exists(output_dir):
+        return jsonify({"status": "error", "message": "Task ID not found."}), 404
+
+    is_finished = (thread is None and os.path.exists(article_file)) or \
+                  (thread is not None and not thread.is_alive())
+
+    if is_finished:
+        response["status"] = "finished"
+        if os.path.exists(article_file):
+            response["output_file"] = os.path.abspath(article_file)
+    elif thread and thread.is_alive():
+        response["status"] = "running"
+        if os.path.exists(nodes_file):
+            with open(nodes_file, 'r') as f:
+                graph_data = json.load(f)
+            executing_node = find_executing_node(graph_data)
+            if executing_node:
+                response["current_node"] = {
+                    "nid": executing_node.get("nid"),
+                    "goal": executing_node.get("task_info", {}).get("goal"),
+                    "status": executing_node.get("status")
+                }
+    else:
+        response["status"] = "pending"
+
+    return jsonify(response)
+
+def start_task(task_type, goal):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    task_id = f"{task_type}_{timestamp}"
+
+    thread = threading.Thread(target=run_task_background, args=(task_id, task_type, goal))
+    thread.daemon = True
+    thread.start()
+
+    with tasks_lock:
+        running_tasks[task_id] = thread
+
+    return {"status": "started", "task_id": task_id}
+
+@app.route('/run/story', methods=['POST'])
+def run_story_task():
+    data = request.get_json()
+    if not data or 'goal' not in data:
+        return jsonify({"status": "error", "message": "Missing 'goal' in request body."}), 400
+    
+    return jsonify(start_task("story_task", data['goal']))
+
+@app.route('/run/report', methods=['POST'])
+def run_report_task():
+    data = request.get_json()
+    if not data or 'goal' not in data:
+        return jsonify({"status": "error", "message": "Missing 'goal' in request body."}), 400
+    
+    return jsonify(start_task("report_task", data['goal']))
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
