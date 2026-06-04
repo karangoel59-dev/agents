@@ -23,6 +23,14 @@ class LLMExecutor(ActionExecutor):
         goal = task_node.task_info.get("goal", "Do a generic task")
         task_type = task_node.task_info.get("task_type", "generic_task")
         
+        # Get model from root node or current task info
+        root_node = task_node.node_graph_info.get("root_node")
+        model = "gpt-4o"
+        if root_node and "model" in root_node.task_info:
+            model = root_node.task_info["model"]
+        elif "model" in task_node.task_info:
+            model = task_node.task_info["model"]
+        
         # Use upper graph memory context if available
         context = ""
         if task_node.node_graph_info["layer"] > 0:
@@ -33,7 +41,7 @@ class LLMExecutor(ActionExecutor):
                 for precedent in same_graph:
                     context += f"- {precedent.get('result', '')}\n\n"
         
-        print(f"\n[Real Agent] Executing Task ({task_type}): {goal}")
+        print(f"\n[Real Agent] Executing Task ({task_type}): {goal} using model {model}")
         
         config = EXECUTOR_CONFIGS.get(task_type)
         if not config:
@@ -45,7 +53,7 @@ class LLMExecutor(ActionExecutor):
             {"role": "user", "content": config["user_prompt"].format(context=context, goal=goal)}
         ]
         
-        response = proxy.call(model="gpt-4o", messages=messages, temperature=0.7, no_cache=True, use_official="azure")
+        response = proxy.call(model=model, messages=messages, temperature=0.7, no_cache=True, use_official="azure")
         result_text = response[0]["message"]["content"]
         
         # Save to memory (Aggregate into the main article)

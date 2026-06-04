@@ -38,8 +38,9 @@ class LLMPlanner(Agent):
         proxy = OpenAIApiProxy()
         goal = node.task_info.get("goal", "Generic goal")
         task_type = node.task_info.get("task_type", "generic_task")
+        model = node.task_info.get("model", "gpt-4o")
         
-        print(f"\n[Planner Agent] Outlining Task ({task_type}): {goal}")
+        print(f"\n[Planner Agent] Outlining Task ({task_type}): {goal} using model {model}")
         
         config = PLANNER_CONFIGS.get(task_type)
         if not config:
@@ -54,7 +55,7 @@ class LLMPlanner(Agent):
             {"role": "user", "content": user_prompt}
         ]
         
-        response = proxy.call(model="gpt-4o", messages=messages, temperature=0.7, no_cache=True, use_official="azure")
+        response = proxy.call(model=model, messages=messages, temperature=0.7, no_cache=True, use_official="azure")
         raw_text = response[0]["message"]["content"]
         
         # Clean up potential markdown formatting from LLM
@@ -67,6 +68,7 @@ class LLMPlanner(Agent):
                 tone_guideline_task = {
                     "goal": "Analyze the original text to define its tone and style. Create a concise guideline for all subsequent writing tasks to follow, ensuring consistency in voice, vocabulary, and sentiment. This is a preliminary step; output only the guidelines.",
                     "task_type": config["child_task_type"],
+                    "model": model
                 }
                 plans.insert(0, tone_guideline_task)
                 print(f"[Planner Agent] Injected tone guideline task.")
@@ -74,6 +76,7 @@ class LLMPlanner(Agent):
             # Ensure dependencies are set chronologically and IDs are correct
             for i, p in enumerate(plans):
                 p["id"] = i + 1
+                p["model"] = model
                 if i == 0:
                     p["dependency"] = []
                 else:

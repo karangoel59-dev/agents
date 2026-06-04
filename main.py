@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 import os
 import datetime
 import json
@@ -152,7 +152,8 @@ def run_story_task():
     if not data or 'goal' not in data:
         return jsonify({"status": "error", "message": "Missing 'goal' in request body."}), 400
     
-    return jsonify(start_task("story_task", data['goal']))
+    model = data.get('model', 'gpt-4o')
+    return jsonify(start_task("story_task", data['goal'], model))
 
 @app.route('/run/report', methods=['POST'])
 def run_report_task():
@@ -160,7 +161,42 @@ def run_report_task():
     if not data or 'goal' not in data:
         return jsonify({"status": "error", "message": "Missing 'goal' in request body."}), 400
     
-    return jsonify(start_task("report_task", data['goal']))
+    model = data.get('model', 'gpt-4o')
+    return jsonify(start_task("report_task", data['goal'], model))
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/output/<task_id>', methods=['GET'])
+def get_task_output(task_id):
+    output_dir = os.path.join("output", task_id)
+    article_file = os.path.join(output_dir, "article.txt")
+    if os.path.exists(article_file):
+        with open(article_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return jsonify({"status": "success", "content": content})
+    return jsonify({"status": "error", "message": "Output not found"}), 404
+
+@app.route('/history', methods=['GET'])
+def get_history():
+    output_dir = "output"
+    if not os.path.exists(output_dir):
+        return jsonify({"status": "success", "history": []})
+    
+    tasks = []
+    for item in os.listdir(output_dir):
+        item_path = os.path.join(output_dir, item)
+        if os.path.isdir(item_path):
+            article_exists = os.path.exists(os.path.join(item_path, "article.txt"))
+            tasks.append({
+                "task_id": item,
+                "finished": article_exists
+            })
+            
+    # Sort by descending timestamp (assuming task_id format ends with timestamp)
+    tasks.sort(key=lambda x: x["task_id"], reverse=True)
+    return jsonify({"status": "success", "history": tasks})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
