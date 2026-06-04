@@ -1,4 +1,5 @@
 README.md
+pyproject.toml
 setup.py
 recursive/__init__.py
 recursive/cache.py
@@ -7,6 +8,7 @@ recursive/graph.py
 recursive/memory.py
 recursive/agent/__init__.py
 recursive/agent/agent_base.py
+recursive/agent/proxy.py
 recursive/executor/__init__.py
 recursive/executor/schema.py
 recursive/executor/actions/__init__.py
@@ -19,8 +21,12 @@ recursive/executor/agents/__init__.py
 recursive/executor/agents/base_agent.py
 recursive/llm/__init__.py
 recursive/llm/llm.py
+recursive/utils/__init__.py
+recursive/utils/display.py
+recursive/utils/file_io.py
+recursive/utils/get_index.py
+recursive/utils/register.py
 writehere_planner.egg-info/PKG-INFO
 writehere_planner.egg-info/SOURCES.txt
 writehere_planner.egg-info/dependency_links.txt
-writehere_planner.egg-info/requires.txt
 writehere_planner.egg-info/top_level.txt

@@ -1,16 +1,8 @@
 Metadata-Version: 2.4
-Name: writehere_planner
+Name: writehere-planner
 Version: 0.1.0
-Summary: A generic Recursive DAG Agentic framework based on the WriteHERE engine
+Summary: WriteHere Planner module
 Author: Extracted from WriteHERE
-Classifier: Programming Language :: Python :: 3
-Classifier: License :: OSI Approved :: MIT License
-Classifier: Operating System :: OS Independent
 Requires-Python: >=3.8
-Requires-Dist: loguru
-Requires-Dist: dill
 Dynamic: author
-Dynamic: classifier
-Dynamic: requires-dist
 Dynamic: requires-python
-Dynamic: summary
