@@ -30,7 +30,7 @@ def get_all_nodes(node):
         nodes.extend(get_all_nodes(child))
     return nodes
 
-def run_task_background(task_id, task_type, goal):
+def run_task_background(task_id, task_type, goal, model=None):
     """
     A helper function to run a task in a background thread.
     """
@@ -40,6 +40,9 @@ def run_task_background(task_id, task_type, goal):
     # Load configurations for the engine from the JSON file
     with open('planner_config.json', 'r') as f:
         config = json.load(f)
+
+    if model:
+        config['model'] = model
 
     initial_task = {
         "goal": goal,
@@ -133,11 +136,11 @@ def get_task_status(task_id):
 
     return jsonify(response)
 
-def start_task(task_type, goal):
+def start_task(task_type, goal, model=None):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     task_id = f"{task_type}_{timestamp}"
 
-    thread = threading.Thread(target=run_task_background, args=(task_id, task_type, goal))
+    thread = threading.Thread(target=run_task_background, args=(task_id, task_type, goal, model))
     thread.daemon = True
     thread.start()
 
